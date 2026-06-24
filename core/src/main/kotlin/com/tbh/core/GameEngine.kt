@@ -24,10 +24,16 @@ object GameEngine {
         val itemIdx          = rng.nextInt(ItemPool.all.size)
         val nextSeed         = rng.state
 
-        // Cała drużyna martwa → reset (złoto i ekwipunek zostają)
+        // Cała drużyna martwa → reset. Złoto, rekord fali i ekwipunek zostają;
+        // założone przedmioty wracają do inventory (świeży bohaterowie mają equippedItem = null).
         if (state.heroes.all { it.hp <= 0 }) {
             val reset = GameState.initial(rngSeed = nextSeed)
-            return reset.copy(gold = state.gold, inventory = state.inventory)
+            val recoveredGear = state.heroes.mapNotNull { it.equippedItem }
+            return reset.copy(
+                gold = state.gold,
+                inventory = state.inventory + recoveredGear,
+                highestWave = state.highestWave
+            )
         }
 
         val heroes = state.heroes.toMutableList()
@@ -95,6 +101,7 @@ object GameEngine {
             zone = newZone,
             gold = newGold,
             inventory = newInventory,
+            highestWave = maxOf(state.highestWave, newWave),
             rngSeed = nextSeed
         )
     }

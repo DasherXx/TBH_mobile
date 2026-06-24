@@ -10,6 +10,7 @@ data class GameState(
     val wave: Int = 1,
     val gold: Long = 0L,
     val inventory: List<Item> = emptyList(),
+    val highestWave: Int = 1,
     val lastSeenTimestamp: Long = 0L,
     val rngSeed: Long = DEFAULT_SEED
 ) {

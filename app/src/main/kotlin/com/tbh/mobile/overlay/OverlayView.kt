@@ -22,6 +22,9 @@ class OverlayView(
     var state: GameState = GameState.initial()
         set(value) { field = value; invalidate() }
 
+    /** Wywoływane przy tapnięciu (nie przeciągnięciu) nakładki. */
+    var onTap: (() -> Unit)? = null
+
     // --- Paints ---
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#E8152040")
@@ -198,7 +201,10 @@ class OverlayView(
                 }
                 return true
             }
-            MotionEvent.ACTION_UP -> return true
+            MotionEvent.ACTION_UP -> {
+                if (!dragging) onTap?.invoke()   // tap, nie drag (próg 8 px) → otwórz menu
+                return true
+            }
         }
         return false
     }

@@ -93,6 +93,30 @@ class GameEngineTest {
         }
     }
 
+    @Test
+    fun `reset returns equipped items to inventory instead of losing them`() {
+        val sword = Item(1, "Miecz", Rarity.COMMON, attackBonus = 5)
+        val armor = Item(2, "Zbroja", Rarity.RARE, hpBonus = 40)
+        val dead = GameState.initial().let { s ->
+            s.copy(
+                heroes = s.heroes.mapIndexed { i, h ->
+                    when (i) {
+                        0 -> h.copy(hp = 0, equippedItem = sword)
+                        1 -> h.copy(hp = 0, equippedItem = armor)
+                        else -> h.copy(hp = 0)
+                    }
+                },
+                inventory = emptyList()
+            )
+        }
+        val reset = GameEngine.tick(dead, 1)
+
+        assertEquals(1, reset.wave)
+        assertTrue("miecz wraca do inventory", reset.inventory.contains(sword))
+        assertTrue("zbroja wraca do inventory", reset.inventory.contains(armor))
+        assertTrue("świeży bohaterowie bez ekwipunku", reset.heroes.all { it.equippedItem == null })
+    }
+
     // ── Obrażenia od potwora ───────────────────────────────────────────────────
 
     @Test

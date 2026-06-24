@@ -22,6 +22,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".menu.MenuActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TBHMobile" />
+
         <service
             android:name=".service.OverlayService"
             android:exported="false"
