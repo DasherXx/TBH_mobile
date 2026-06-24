@@ -108,6 +108,100 @@ class GameEngineTest {
         assertEquals(90, result.heroes[0].hp)
     }
 
+    // ── Loot: złoto ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `defeating monster increases gold`() {
+        val state = oneHitKillState()
+        val result = GameEngine.tick(state, 1)
+        assertTrue("Gold should increase after kill", result.gold > 0L)
+    }
+
+    // ── Loot: XP ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `defeating monster grants XP to alive heroes`() {
+        val state = oneHitKillState()
+        val result = GameEngine.tick(state, 1)
+        val hero = result.heroes[0]
+        // Bohater dostał XP (lub już awansował poziom)
+        assertTrue("Alive hero should gain XP or level up", hero.xp > 0 || hero.level > 1)
+    }
+
+    @Test
+    fun `dead hero does not gain XP after kill`() {
+        val state = GameState(
+            heroes = listOf(
+                Hero(1, HeroClass.WARRIOR, hp = 100, maxHp = 100, attack = 99_999),
+                Hero(2, HeroClass.MAGE,    hp = 0,   maxHp = 80,  attack = 0)       // martwy
+            ),
+            monster = Monster("Dummy", hp = 1, maxHp = 100, attack = 0),
+            rngSeed = 42L
+        )
+        val result = GameEngine.tick(state, 1)
+        assertEquals(0, result.heroes[1].xp)
+        assertEquals(1, result.heroes[1].level)
+    }
+
+    // ── Levelowanie ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `hero levels up when XP threshold is reached`() {
+        // Próg dla poziom 1 = 100*1 = 100 XP
+        // xpForKill(wave=1, zone=1) = 30+5+10 = 45
+        // Startujemy z xp=90 → 90+45=135 ≥ 100 → awans
+        val state = GameState(
+            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = 90, level = 1)),
+            monster = Monster("Dummy", hp = 1, maxHp = 100, attack = 0),
+            rngSeed = 42L
+        )
+        val result = GameEngine.tick(state, 1)
+        val hero = result.heroes[0]
+        assertEquals(2, hero.level)
+        assertTrue("attack should increase on level up", hero.attack > 100)
+        assertTrue("maxHp should increase on level up", hero.maxHp > 100)
+    }
+
+    @Test
+    fun `XP overflow is preserved after level up`() {
+        // xpForKill(wave=1, zone=1) = 45
+        // xp=90 → 90+45=135 → awans (próg=100), nadwyżka = 35
+        val state = GameState(
+            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = 90, level = 1)),
+            monster = Monster("Dummy", hp = 1, maxHp = 100, attack = 0),
+            rngSeed = 42L
+        )
+        val result = GameEngine.tick(state, 1)
+        val xpGain = GameEngine.xpForKill(wave = 1, zone = 1)   // = 45
+        val expectedOverflow = (90 + xpGain) - 100              // 135 - 100 = 35
+        assertEquals(expectedOverflow, result.heroes[0].xp)
+    }
+
+    // ── Ekwipunek ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `equipped item with attackBonus increases damage dealt`() {
+        val item = Item(id = 99, name = "Test Sword", rarity = Rarity.COMMON, attackBonus = 50)
+        val baseHero     = Hero(1, HeroClass.WARRIOR, hp = 100, maxHp = 100, attack = 20)
+        val equippedHero = baseHero.copy(equippedItem = item)
+
+        // Potwór z dużą ilością HP (żaden nie ginie w jednym ticku)
+        val baseState = GameState(
+            heroes  = listOf(baseHero),
+            monster = Monster("Dummy", hp = 999, maxHp = 999, attack = 0),
+            rngSeed = 42L
+        )
+        val equippedState = baseState.copy(heroes = listOf(equippedHero))
+
+        val baseResult     = GameEngine.tick(baseState, 1)
+        val equippedResult = GameEngine.tick(equippedState, 1)
+
+        // Bohater bez przedmiotu: 999 - 20 = 979 HP potworowi
+        assertEquals(979, baseResult.monster.hp)
+        // Bohater z mieczem: 999 - (20+50) = 929 HP potworowi
+        assertEquals(929, equippedResult.monster.hp)
+    }
+
     // ── Pomocnicze ─────────────────────────────────────────────────────────────
 
     private fun oneHitKillState(wave: Int = 1) = GameState(
