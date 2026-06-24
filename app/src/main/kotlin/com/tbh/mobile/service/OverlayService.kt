@@ -14,8 +14,11 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
+import android.util.Log
 import com.tbh.core.GameEngine
+import com.tbh.core.GameSerializer
 import com.tbh.core.GameState
+import com.tbh.core.OfflineProgress
 import com.tbh.mobile.R
 import com.tbh.mobile.overlay.OverlayView
 import com.tbh.mobile.overlay.displayName
@@ -26,6 +29,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 
 class OverlayService : Service() {
 
@@ -33,6 +37,7 @@ class OverlayService : Service() {
     private var overlayView: OverlayView? = null
     private var gameState = GameState.initial()
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val saveFile: File by lazy { File(filesDir, SAVE_FILE) }
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +50,7 @@ class OverlayService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         attachOverlay()
+        loadAndApplyOffline()
         startGameLoop()
     }
 
@@ -55,6 +61,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        saveStateBlocking()           // best-effort zapis przed zamknięciem
         scope.cancel()
         overlayView?.let { windowManager.removeView(it) }
         overlayView = null
@@ -66,13 +73,65 @@ class OverlayService : Service() {
 
     private fun startGameLoop() {
         scope.launch {
+            var ticksSinceSave = 0
             while (isActive) {
                 delay(TICK_MS)
                 val oldState = gameState
                 gameState = GameEngine.tick(gameState)
                 overlayView?.state = gameState
                 detectAndShowEvents(oldState, gameState)
+
+                // Zapis co kilka ticków — nie przy każdym, żeby nie obciążać dysku.
+                if (++ticksSinceSave >= SAVE_EVERY_TICKS) {
+                    ticksSinceSave = 0
+                    saveStateAsync()
+                }
             }
+        }
+    }
+
+    // ----- Persystencja: wczytanie + postęp offline -----
+
+    private fun loadAndApplyOffline() {
+        if (!saveFile.exists()) return
+        try {
+            val loaded = GameSerializer.fromJson(saveFile.readText())
+            val result = OfflineProgress.apply(loaded, System.currentTimeMillis(), TICK_MS)
+            gameState = result.state
+            overlayView?.state = gameState
+
+            if (result.ticksSimulated > 0 && (result.goldGained > 0 || result.monstersDefeated > 0)) {
+                val defeated = result.monstersDefeated.coerceAtLeast(0)
+                overlayView?.showToast(
+                    "Podczas nieobecności: +${result.goldGained} złota, pokonano $defeated",
+                    WELCOME_TOAST_MS
+                )
+            }
+        } catch (e: Exception) {
+            // Uszkodzony / niezgodny zapis — startujemy od zera, nie wywalamy serwisu.
+            Log.w(TAG, "Nie udało się wczytać zapisu, start od nowa", e)
+            gameState = GameState.initial()
+        }
+    }
+
+    private fun saveStateAsync() {
+        val toSave = gameState.copy(lastSeenTimestamp = System.currentTimeMillis())
+        gameState = toSave
+        scope.launch(Dispatchers.IO) {
+            try {
+                saveFile.writeText(GameSerializer.toJson(toSave))
+            } catch (e: Exception) {
+                Log.w(TAG, "Zapis stanu nie powiódł się", e)
+            }
+        }
+    }
+
+    private fun saveStateBlocking() {
+        try {
+            val toSave = gameState.copy(lastSeenTimestamp = System.currentTimeMillis())
+            saveFile.writeText(GameSerializer.toJson(toSave))
+        } catch (e: Exception) {
+            Log.w(TAG, "Zapis stanu w onDestroy nie powiódł się", e)
         }
     }
 
@@ -152,11 +211,15 @@ class OverlayService : Service() {
     }
 
     companion object {
+        private const val TAG             = "OverlayService"
         private const val CHANNEL_ID      = "tbh_overlay"
         private const val NOTIFICATION_ID = 1
         private const val OVERLAY_W_DP    = 240
         private const val OVERLAY_H_DP    = 135
         private const val TICK_MS         = 1500L
+        private const val SAVE_EVERY_TICKS = 10
+        private const val SAVE_FILE       = "savegame.json"
+        private const val WELCOME_TOAST_MS = 5000L
         private const val ACTION_STOP     = "com.tbh.mobile.STOP_OVERLAY"
 
         fun start(context: Context) =

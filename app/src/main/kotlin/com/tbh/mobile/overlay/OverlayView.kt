@@ -65,8 +65,8 @@ class OverlayView(
     // --- Toast queue ---
     private val toasts = mutableListOf<Pair<String, Long>>()
 
-    fun showToast(message: String) {
-        val expiry = System.currentTimeMillis() + TOAST_DURATION_MS
+    fun showToast(message: String, durationMs: Long = TOAST_DURATION_MS) {
+        val expiry = System.currentTimeMillis() + durationMs
         toasts.add(Pair(message, expiry))
         if (toasts.size > MAX_TOASTS) toasts.removeAt(0)
         invalidate()

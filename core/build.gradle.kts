@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -23,5 +24,6 @@ android {
 
 dependencies {
     // Zero importów Android w source code — plugin to tylko infrastruktura budowania.
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
 }

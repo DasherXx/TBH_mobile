@@ -1,5 +1,8 @@
 package com.tbh.core
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class GameState(
     val heroes: List<Hero>,
     val monster: Monster,
