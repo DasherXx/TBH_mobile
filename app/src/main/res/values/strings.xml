@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TBH: Task Bar Hero</string>
+    <string name="notif_channel_name">TBH Nakładka</string>
+    <string name="notif_channel_desc">Nakładka gry TBH: Task Bar Hero</string>
+    <string name="notif_title">TBH: Task Bar Hero</string>
+    <string name="notif_text">Nakładka aktywna</string>
+    <string name="notif_action_stop">Zatrzymaj</string>
+    <string name="btn_grant_overlay">Nadaj uprawnienie nakładki</string>
+    <string name="btn_start_overlay">Uruchom nakładkę</string>
+    <string name="btn_stop_overlay">Zatrzymaj nakładkę</string>
+    <string name="overlay_permission_rationale">Nakładka wymaga uprawnienia\n„Wyświetlanie nad innymi aplikacjami"</string>
+</resources>

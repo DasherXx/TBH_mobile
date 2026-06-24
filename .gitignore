@@ -1,0 +1,16 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Gradle wrapper binary — regenerowane przez `./gradlew wrapper`
+!gradle/wrapper/gradle-wrapper.jar
+
+**/build/
+.kotlin/
