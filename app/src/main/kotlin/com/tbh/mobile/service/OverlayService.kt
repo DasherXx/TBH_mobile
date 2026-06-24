@@ -18,6 +18,7 @@ import com.tbh.core.GameEngine
 import com.tbh.core.GameState
 import com.tbh.mobile.R
 import com.tbh.mobile.overlay.OverlayView
+import com.tbh.mobile.overlay.displayName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,9 +68,33 @@ class OverlayService : Service() {
         scope.launch {
             while (isActive) {
                 delay(TICK_MS)
+                val oldState = gameState
                 gameState = GameEngine.tick(gameState)
                 overlayView?.state = gameState
+                detectAndShowEvents(oldState, gameState)
             }
+        }
+    }
+
+    private fun detectAndShowEvents(old: GameState, new: GameState) {
+        val view = overlayView ?: return
+
+        // Złoto
+        val goldDiff = new.gold - old.gold
+        if (goldDiff > 0) view.showToast("+$goldDiff złota")
+
+        // Level up dowolnego bohatera
+        new.heroes.forEachIndexed { i, newHero ->
+            val oldHero = old.heroes.getOrNull(i) ?: return@forEachIndexed
+            if (newHero.level > oldHero.level) {
+                view.showToast("${newHero.heroClass.displayName()} → poziom ${newHero.level}!")
+            }
+        }
+
+        // Nowy przedmiot w ekwipunku
+        if (new.inventory.size > old.inventory.size) {
+            val item = new.inventory.last()
+            view.showToast("Zdobyto: ${item.rarity.displayName()} ${item.name}")
         }
     }
 
