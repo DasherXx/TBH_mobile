@@ -34,15 +34,17 @@ class GameEngineTest {
     }
 
     @Test
-    fun `defeating monster scales monster maxHp by 1_35`() {
+    fun `defeating monster scales monster maxHp by wave curve`() {
         val monsterMaxHp = 100
         val state = GameState(
             heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999)),
             monster = Monster("Goblin", hp = 1, maxHp = monsterMaxHp, attack = 0),
+            wave    = 1,
             rngSeed = 42L
         )
-        val result = GameEngine.tick(state, 1)
-        assertEquals((monsterMaxHp * 1.35).toInt(), result.monster.maxHp)
+        val result = GameEngine.tick(state, 1)   // → fala 2
+        val expected = (monsterMaxHp * GameEngine.monsterHpScale(2)).toInt()
+        assertEquals(expected, result.monster.maxHp)
     }
 
     @Test
@@ -171,11 +173,10 @@ class GameEngineTest {
 
     @Test
     fun `hero levels up when XP threshold is reached`() {
-        // Próg dla poziom 1 = 100*1 = 100 XP
-        // xpForKill(wave=1, zone=1) = 30+5+10 = 45
-        // Startujemy z xp=90 → 90+45=135 ≥ 100 → awans
+        val threshold = GameEngine.xpThreshold(1)
+        val startXp   = threshold - 1                 // jedno zabicie przekroczy próg
         val state = GameState(
-            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = 90, level = 1)),
+            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = startXp, level = 1)),
             monster = Monster("Dummy", hp = 1, maxHp = 100, attack = 0),
             rngSeed = 42L
         )
@@ -188,17 +189,27 @@ class GameEngineTest {
 
     @Test
     fun `XP overflow is preserved after level up`() {
-        // xpForKill(wave=1, zone=1) = 45
-        // xp=90 → 90+45=135 → awans (próg=100), nadwyżka = 35
+        val threshold = GameEngine.xpThreshold(1)
+        val gain      = GameEngine.xpForKill(wave = 1, zone = 1)
+        val startXp   = threshold - 1
         val state = GameState(
-            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = 90, level = 1)),
+            heroes  = listOf(Hero(1, HeroClass.WARRIOR, 100, 100, attack = 99_999, xp = startXp, level = 1)),
             monster = Monster("Dummy", hp = 1, maxHp = 100, attack = 0),
             rngSeed = 42L
         )
         val result = GameEngine.tick(state, 1)
-        val xpGain = GameEngine.xpForKill(wave = 1, zone = 1)   // = 45
-        val expectedOverflow = (90 + xpGain) - 100              // 135 - 100 = 35
+        val expectedOverflow = (startXp + gain) - threshold
         assertEquals(expectedOverflow, result.heroes[0].xp)
+    }
+
+    @Test
+    fun `xpThreshold grows exponentially with level`() {
+        val t1 = GameEngine.xpThreshold(1)
+        val t2 = GameEngine.xpThreshold(2)
+        val t3 = GameEngine.xpThreshold(3)
+        assertTrue("próg rośnie", t2 > t1 && t3 > t2)
+        // wzrost wykładniczy: przyrost między poziomami też rośnie
+        assertTrue("przyspieszający wzrost", (t3 - t2) > (t2 - t1))
     }
 
     // ── Ekwipunek ─────────────────────────────────────────────────────────────

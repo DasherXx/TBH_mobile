@@ -1,5 +1,7 @@
 package com.tbh.core
 
+import kotlin.math.pow
+
 object GameEngine {
 
     private const val WAVES_PER_ZONE = 10
@@ -13,7 +15,23 @@ object GameEngine {
     }
 
     /** XP za zabicie potwora. Publiczne dla testów. */
-    fun xpForKill(wave: Int, zone: Int): Int = 30 + wave * 5 + zone * 10
+    fun xpForKill(wave: Int, zone: Int): Int = 20 + wave * 4 + zone * 8
+
+    /**
+     * Próg XP do awansu z danego poziomu — wykładniczy, by spowolnić progresję w późniejszej grze.
+     * L1→2: 100, L2→3: 160, L3→4: 256, L5: ~655, L10: ~6800. Publiczne dla testów.
+     */
+    fun xpThreshold(level: Int): Int = (100 * 1.6.pow(level - 1)).toInt()
+
+    /**
+     * Mnożnik HP potwora przy przejściu do danej fali — łagodny start, agresywne późne fale.
+     * Publiczne dla testów.
+     */
+    fun monsterHpScale(forWave: Int): Double = when {
+        forWave < 10 -> 1.18
+        forWave < 25 -> 1.30
+        else         -> 1.45
+    }
 
     private fun singleTick(state: GameState): GameState {
         val rng = LcgRng(state.rngSeed)
@@ -86,7 +104,7 @@ object GameEngine {
         }
 
         // Kolejny potwór
-        val newMaxHp = (state.monster.maxHp * 1.35).toInt().coerceAtMost(999_999)
+        val newMaxHp = (state.monster.maxHp * monsterHpScale(newWave)).toInt().coerceAtMost(999_999)
         val newMonster = Monster(
             name = monsterName(newWave, newZone),
             hp = newMaxHp,
@@ -109,7 +127,7 @@ object GameEngine {
     private fun applyXp(hero: Hero, xpGain: Int): Hero {
         var h = hero.copy(xp = hero.xp + xpGain)
         while (true) {
-            val threshold = 100 * h.level
+            val threshold = xpThreshold(h.level)
             if (h.xp < threshold) break
             h = h.copy(
                 level  = h.level + 1,

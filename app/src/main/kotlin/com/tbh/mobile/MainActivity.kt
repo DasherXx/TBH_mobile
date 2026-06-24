@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,13 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tbh.mobile.service.OverlayService
+import com.tbh.mobile.state.OverlayRunning
 import com.tbh.mobile.ui.theme.TBHMobileTheme
 
 class MainActivity : ComponentActivity() {
 
-    // Compose-observable states backed by Activity lifecycle
+    // Compose-observable state backed by Activity lifecycle
     private var canDrawOverlays by mutableStateOf(false)
-    private var overlayRunning by mutableStateOf(false)
 
     private val overlaySettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -53,6 +54,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             TBHMobileTheme {
+                // Reaktywny, rzeczywisty stan serwisu — eliminuje „ducha" także gdy nakładka
+                // zostanie zatrzymana z powiadomienia przy MainActivity na wierzchu.
+                val overlayRunning by OverlayRunning.isRunning.collectAsState()
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
                     OverlaySetupScreen(
                         modifier = Modifier.padding(padding),
@@ -69,7 +73,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-check after user returns from system settings.
+        // Re-check po powrocie z ustawień systemowych.
         canDrawOverlays = Settings.canDrawOverlays(this)
     }
 
@@ -86,12 +90,12 @@ class MainActivity : ComponentActivity() {
             notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         OverlayService.start(this)
-        overlayRunning = true
+        // Stan przycisku zsynchronizuje OverlayRunning, gdy serwis wystartuje (onCreate).
     }
 
     private fun stopOverlay() {
         OverlayService.stop(this)
-        overlayRunning = false
+        // OverlayRunning ustawi się na false w onDestroy serwisu.
     }
 }
 
@@ -119,24 +123,36 @@ private fun OverlaySetupScreen(
         when {
             !canDrawOverlays -> {
                 Text(
-                    text = "Nakładka wymaga uprawnienia\n\"Wyświetlanie nad innymi aplikacjami\"",
+                    text = "Aby grać, TBH potrzebuje pozwolenia na wyświetlanie nakładki nad " +
+                        "innymi aplikacjami.\n\n" +
+                        "1. Dotknij przycisku poniżej\n" +
+                        "2. Włącz „Zezwól na wyświetlanie nad innymi aplikacjami\"\n" +
+                        "3. Wróć do tego ekranu",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = onRequestPermission) {
-                    Text("Nadaj uprawnienie nakładki")
+                    Text("Przejdź do ustawień uprawnienia")
                 }
             }
             !overlayRunning -> {
+                Text(
+                    text = "Uprawnienie nadane. Uruchom nakładkę — pojawi się mała scena walki, " +
+                        "którą możesz przeciągać, a dotknięcie otwiera menu.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+                Spacer(Modifier.height(16.dp))
                 Button(onClick = onStartOverlay) {
                     Text("Uruchom nakładkę")
                 }
             }
             else -> {
                 Text(
-                    text = "Nakładka działa — przeciągnij kwadrat po ekranie",
+                    text = "Nakładka działa — przeciągnij ją po ekranie, a dotknij, aby otworzyć menu.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 32.dp)

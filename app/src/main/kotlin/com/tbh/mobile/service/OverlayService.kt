@@ -22,6 +22,7 @@ import com.tbh.mobile.overlay.OverlayView
 import com.tbh.mobile.overlay.displayName
 import com.tbh.mobile.state.GameRepository
 import com.tbh.mobile.state.MenuVisibility
+import com.tbh.mobile.state.OverlayRunning
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +53,7 @@ class OverlayService : Service() {
         observeState()
         observeMenuVisibility()
         startGameLoop()
+        OverlayRunning.set(true)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,6 +63,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        OverlayRunning.set(false)
         GameRepository.saveBlocking()   // best-effort zapis przed zamknięciem
         scope.cancel()
         overlayView?.let { windowManager.removeView(it) }
@@ -209,7 +212,7 @@ class OverlayService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val OVERLAY_W_DP    = 240
         private const val OVERLAY_H_DP    = 135
-        private const val TICK_MS         = 1500L
+        private const val TICK_MS         = 2000L
         private const val SAVE_EVERY_TICKS = 10
         private const val WELCOME_TOAST_MS = 5000L
         private const val ACTION_STOP     = "com.tbh.mobile.STOP_OVERLAY"
