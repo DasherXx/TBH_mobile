@@ -22,6 +22,6 @@ android {
 }
 
 dependencies {
-    // Czysta logika — zero zależności od Androida poza SDK-em.
-    // Zależności dodajemy w kolejnych krokach (Coroutines, Serialization, itd.).
+    // Zero importów Android w source code — plugin to tylko infrastruktura budowania.
+    testImplementation(libs.junit)
 }

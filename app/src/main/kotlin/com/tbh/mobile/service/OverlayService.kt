@@ -14,9 +14,9 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
+import com.tbh.core.GameEngine
+import com.tbh.core.GameState
 import com.tbh.mobile.R
-import com.tbh.mobile.battle.BattleEngine
-import com.tbh.mobile.battle.BattleState
 import com.tbh.mobile.overlay.OverlayView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +30,7 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: OverlayView? = null
-    private var battleState = BattleState.initial()
+    private var gameState = GameState.initial()
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
@@ -38,7 +38,6 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         ensureNotificationChannel()
         val notification = buildNotification()
-        // Android 14+ wymaga jawnego podania typu usługi.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -62,14 +61,14 @@ class OverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ----- Game loop -----
+    // ----- Game loop — tylko wołamy :core, zero logiki walki tutaj -----
 
     private fun startGameLoop() {
         scope.launch {
             while (isActive) {
                 delay(TICK_MS)
-                battleState = BattleEngine.tick(battleState)
-                overlayView?.state = battleState   // setter wywołuje invalidate() na main wątku
+                gameState = GameEngine.tick(gameState)
+                overlayView?.state = gameState
             }
         }
     }
@@ -126,8 +125,6 @@ class OverlayService : Service() {
             .setOngoing(true)
             .build()
     }
-
-    // ----- Companion -----
 
     companion object {
         private const val CHANNEL_ID      = "tbh_overlay"

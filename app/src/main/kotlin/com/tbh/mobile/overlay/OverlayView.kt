@@ -9,7 +9,9 @@ import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import com.tbh.mobile.battle.BattleState
+import com.tbh.core.GameState
+import com.tbh.core.Hero
+import com.tbh.core.HeroClass
 import kotlin.math.abs
 
 class OverlayView(
@@ -18,12 +20,12 @@ class OverlayView(
     private val params: WindowManager.LayoutParams
 ) : View(context) {
 
-    var state: BattleState = BattleState.initial()
+    var state: GameState = GameState.initial()
         set(value) { field = value; invalidate() }
 
     // --- Paints ---
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E8152040")  // głęboki granat, ~91% krycia
+        color = Color.parseColor("#E8152040")
     }
     private val barBgPaint = Paint().apply { color = Color.parseColor("#55FFFFFF") }
     private val barFgPaint = Paint()
@@ -32,7 +34,7 @@ class OverlayView(
         color = Color.parseColor("#60000000")
     }
     private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FFD700")    // złoty
+        color = Color.parseColor("#FFD700")
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
     }
@@ -42,7 +44,7 @@ class OverlayView(
     }
     private val bgRect = RectF()
 
-    // --- Drag state ---
+    // --- Drag ---
     private var lastRawX = 0f
     private var lastRawY = 0f
     private var dragging = false
@@ -54,52 +56,49 @@ class OverlayView(
         val h = height.toFloat()
         val d = resources.displayMetrics.density
 
-        // Tło
         bgRect.set(0f, 0f, w, h)
         canvas.drawRoundRect(bgRect, 14f, 14f, bgPaint)
 
-        // Tytuł/wave
         titlePaint.textSize = 11f * d
-        canvas.drawText("⚔  Wave ${state.wave}", w * 0.50f, h * 0.22f, titlePaint)
+        canvas.drawText("⚔  Wave ${state.wave}  |  Zone ${state.zone}", w * 0.50f, h * 0.22f, titlePaint)
 
-        val heroR   = h * 0.18f
+        val heroR    = h * 0.18f
         val monsterR = h * 0.25f
-        val heroY   = h * 0.66f
+        val heroY    = h * 0.66f
         val monsterY = h * 0.60f
-        val heroXs  = floatArrayOf(w * 0.14f, w * 0.29f, w * 0.44f)
+        val heroXs   = floatArrayOf(w * 0.14f, w * 0.29f, w * 0.44f)
         val monsterX = w * 0.79f
 
         namePaint.textSize = 9f * d
 
-        // Separator "VS"
+        // VS separator
         titlePaint.textSize = 10f * d
         canvas.drawText("VS", w * 0.615f, monsterY + 5f * d, titlePaint)
 
-        // Bohaterowie
+        // Heroes
         state.heroes.forEachIndexed { i, hero ->
             val cx = heroXs[i]
             val barW = heroR * 2.5f
             val barH = 5f * d
-            val barX = cx - barW / 2f
-            val barY = heroY - heroR - barH - 5f * d
-            drawHpBar(canvas, barX, barY, barW, barH, hero.hp, hero.maxHp)
+            drawHpBar(canvas, cx - barW / 2f, heroY - heroR - barH - 5f * d, barW, barH, hero.hp, hero.maxHp)
+
             if (hero.hp > 0) {
-                circlePaint.color = hero.color
+                circlePaint.color = hero.heroClass.toColor()
                 canvas.drawCircle(cx, heroY, heroR, circlePaint)
             } else {
                 canvas.drawCircle(cx, heroY, heroR, deadPaint)
                 namePaint.color = Color.parseColor("#AA888888")
             }
-            canvas.drawText(hero.name.take(7), cx, heroY + heroR + 10f * d, namePaint)
-            namePaint.color = Color.parseColor("#CCFFFFFF")  // reset
+            canvas.drawText(hero.heroClass.displayName(), cx, heroY + heroR + 10f * d, namePaint)
+            namePaint.color = Color.parseColor("#CCFFFFFF")
         }
 
-        // Potwór
+        // Monster
         val monster = state.monster
         val mBarW = monsterR * 2.4f
         val mBarH = 5f * d
         drawHpBar(canvas, monsterX - mBarW / 2f, monsterY - monsterR - mBarH - 5f * d, mBarW, mBarH, monster.hp, monster.maxHp)
-        circlePaint.color = monster.color
+        circlePaint.color = monsterColorForWave(state.wave)
         canvas.drawCircle(monsterX, monsterY, monsterR, circlePaint)
         canvas.drawText(monster.name, monsterX, monsterY + monsterR + 10f * d, namePaint)
     }
@@ -108,14 +107,14 @@ class OverlayView(
         canvas.drawRect(x, y, x + w, y + h, barBgPaint)
         val ratio = if (maxHp > 0) hp.toFloat() / maxHp else 0f
         barFgPaint.color = when {
-            ratio > 0.6f -> Color.parseColor("#66BB6A")  // zielony
-            ratio > 0.3f -> Color.parseColor("#FFA726")  // pomarańczowy
-            else         -> Color.parseColor("#EF5350")  // czerwony
+            ratio > 0.6f -> Color.parseColor("#66BB6A")
+            ratio > 0.3f -> Color.parseColor("#FFA726")
+            else         -> Color.parseColor("#EF5350")
         }
         canvas.drawRect(x, y, x + w * ratio, y + h, barFgPaint)
     }
 
-    // --- Przeciąganie ---
+    // --- Touch ---
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
@@ -135,5 +134,27 @@ class OverlayView(
             MotionEvent.ACTION_UP -> return true
         }
         return false
+    }
+
+    // --- Presentation helpers (warstwa :app — nie należą do :core) ---
+
+    private fun HeroClass.toColor() = when (this) {
+        HeroClass.WARRIOR -> Color.parseColor("#4FC3F7")
+        HeroClass.MAGE    -> Color.parseColor("#CE93D8")
+        HeroClass.ARCHER  -> Color.parseColor("#A5D6A7")
+    }
+
+    private fun HeroClass.displayName() = when (this) {
+        HeroClass.WARRIOR -> "Wojownik"
+        HeroClass.MAGE    -> "Mag"
+        HeroClass.ARCHER  -> "Łucznik"
+    }
+
+    private fun monsterColorForWave(wave: Int) = when {
+        wave <= 5  -> Color.parseColor("#EF9A9A")
+        wave <= 10 -> Color.parseColor("#FFCC80")
+        wave <= 20 -> Color.parseColor("#80CBC4")
+        wave <= 30 -> Color.parseColor("#B0BEC5")
+        else       -> Color.parseColor("#FF8A65")
     }
 }
